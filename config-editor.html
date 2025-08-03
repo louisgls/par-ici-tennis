@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Éditeur de configuration Tennis</title>
+  <style>
+    :root {
+      --main-bg: #f5f7fa;
+      --panel-bg: #fff;
+      --primary: #2563eb;
+      --primary-dark: #1d4fd7;
+      --danger: #e11d48;
+      --success: #22c55e;
+      --border: #e0e5ec;
+      --input-bg: #f3f6fb;
+      --input-border: #cbd5e1;
+      --input-focus: #2563eb55;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      background: var(--main-bg);
+      color: #1b2635;
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 30px 8px;
+    }
+    form {
+      background: var(--panel-bg);
+      max-width: 520px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 38px 32px 28px 32px;
+      border-radius: 16px;
+      box-shadow: 0 2px 20px #17386614;
+      border: 1.5px solid var(--border);
+    }
+    h1 {
+      text-align: center;
+      color: var(--primary-dark);
+      margin-bottom: 28px;
+      font-weight: 800;
+      letter-spacing: -1px;
+    }
+    fieldset {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 18px 16px 18px;
+      margin-bottom: 18px;
+      background: #f3f6fb33;
+    }
+    legend {
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 1.07em;
+      padding: 0 8px;
+    }
+    label {
+      display: block;
+      color: #18315a;
+      margin-top: 18px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      font-size: 1.06em;
+    }
+    input[type="text"], input[type="email"], input[type="password"], input[type="date"] {
+      width: 100%;
+      padding: 10px 11px;
+      margin: 7px 0 0 0;
+      display: block;
+      background: var(--input-bg);
+      border: 1.35px solid var(--input-border);
+      border-radius: 7px;
+      font-size: 1em;
+      color: #173866;
+      transition: border-color 0.18s, box-shadow 0.18s;
+    }
+    input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus, input[type="date"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px var(--input-focus);
+    }
+    .array-group, .players-group {
+      margin-bottom: 22px;
+    }
+    #players-list, #locations-list, #hours-list, #priceType-list, #courtType-list {
+      margin-top: 6px;
+      margin-bottom: 2px;
+    }
+    .player-row, .array-group div > div {
+      display: flex;
+      gap: 7px;
+      margin-bottom: 6px;
+      align-items: center;
+    }
+    .player-row input, .array-group input {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .small-btn {
+      margin-left: 3px;
+      font-size: 0.97em;
+      padding: 0 9px;
+      border-radius: 5px;
+      color: #fff;
+      background: var(--danger);
+      border: none;
+      cursor: pointer;
+      transition: background 0.18s;
+      height: 32px;
+      position: relative;
+      top: 1px;
+      box-shadow: 0 2px 7px #e11d4822;
+      font-weight: 600;
+    }
+    .small-btn:hover {
+      background: #b60b2c;
+    }
+    button[type="button"]:not(.small-btn) {
+      background: var(--primary);
+      color: #fff;
+      padding: 9px 15px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 1em;
+      margin-top: 10px;
+      font-weight: 600;
+      transition: background 0.17s, filter 0.17s;
+      box-shadow: 0 2px 18px #17386618;
+    }
+    button[type="button"]:not(.small-btn):hover {
+      background: var(--primary-dark);
+      filter: brightness(1.1);
+    }
+    button[disabled], .small-btn[disabled] {
+      filter: grayscale(0.5) opacity(0.7);
+      pointer-events: none;
+    }
+    button[type="submit"]#run-button {
+      width: 100%;
+      color: #fff;
+      background: linear-gradient(90deg, var(--primary), var(--primary-dark));
+      font-size: 1.08em;
+      font-weight: 700;
+      padding: 13px 0;
+      border-radius: 10px;
+      border: none;
+      box-shadow: 0 3px 18px #2563eb28;
+      margin-top: 17px;
+      margin-bottom: 2px;
+      transition: background 0.18s, filter 0.14s;
+    }
+    button[type="submit"]#run-button:hover {
+      background: linear-gradient(90deg, var(--primary-dark) 60%, var(--primary) 100%);
+      filter: brightness(1.03);
+    }
+    #run-result {
+      min-height: 40px;
+      margin-top: 22px;
+      font-size: 1.07em;
+    }
+    #run-result pre {
+      border-radius: 7px;
+      padding: 7px 12px;
+      font-size: 0.97em;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      background: #1d334110;
+      border: 1px solid #dde2ee;
+    }
+    #run-result b { display: inline-block; margin-bottom: 7px; }
+    #run-result .success-block {
+      background: #dcfce7;
+      color: #137333;
+      border: 1.2px solid #22c55e44;
+      box-shadow: 0 1px 7px #22c55e18;
+      font-weight: 600;
+    }
+    #run-result .error-block {
+      background: #fdf2f8;
+      color: #b91c1c;
+      border: 1.2px solid #e11d4844;
+      box-shadow: 0 1px 7px #e11d4818;
+      font-weight: 600;
+    }
+    @media (max-width: 700px) {
+      body { padding: 10px 0; }
+      form { padding: 12px 4vw 24px 4vw; }
+      h1 { font-size: 1.2em; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Éditeur de configuration Tennis</h1>
+  <form id="configForm">
+    <fieldset>
+      <legend>Identifiants Compte Tennis</legend>
+      <label for="account-email">Adresse e-mail :</label>
+      <input type="email" name="account.email" id="account-email" autocomplete="username" required autofocus placeholder="Adresse e-mail du compte" />
+      <label for="account-password">Mot de passe :</label>
+      <input type="password" name="account.password" id="account-password" autocomplete="current-password" required placeholder="Mot de passe" />
+    </fieldset>
+    <label for="config-date">Date*</label>
+    <input type="text" name="date" id="config-date" required placeholder="JJ/MM/AAAA ou similaire" />
+
+    <div class="array-group">
+      <label for="locations-list">Lieux à tester :</label>
+      <div id="locations-list"></div>
+      <button type="button" id="add-location" class="small-btn">+ ajouter un lieu</button>
+    </div>
+
+    <div class="array-group">
+      <label for="hours-list">Heures proposées :</label>
+      <div id="hours-list"></div>
+      <button type="button" id="add-hour" class="small-btn">+ ajouter une heure</button>
+    </div>
+
+    <div class="array-group">
+      <label for="priceType-list">Types de tarif :</label>
+      <div id="priceType-list"></div>
+      <button type="button" id="add-priceType" class="small-btn">+ ajouter un type de tarif</button>
+    </div>
+
+    <div class="array-group">
+      <label for="courtType-list">Types de court :</label>
+      <div id="courtType-list"></div>
+      <button type="button" id="add-courtType" class="small-btn">+ ajouter un type de court</button>
+    </div>
+
+    <div class="players-group">
+      <label for="players-list">Joueurs :</label>
+      <div id="players-list"></div>
+      <button type="button" id="add-player" class="small-btn">+ ajouter un joueur</button>
+      <div style="font-size:0.93em;color:#777;margin-top:2px;">(Indiquez prénom et nom, ajoutez un joueur par clic)</div>
+    </div>
+
+    <hr/>
+    <button type="submit" id="run-button">Lancer l'action</button>
+    <div id="run-result" style="margin-top:20px;"></div>
+  </form>
+<script>
+/**
+ * Structure par défaut (utilisée si fetch échoue) : prise sur config.json réel
+ */
+const defaultConfig = {
+  account: {
+    email: "louis.gallais@gmail.com",
+    password: "12345"
+  },
+  locations: [
+    "Valeyre",
+    "Suzanne Lenglen",
+    "Poliveau"
+  ],
+  date: "9/10/2021",
+  hours: [
+    "18",
+    "19",
+    "20"
+  ],
+  priceType: [
+    "Tarif plein",
+    "Tarif réduit"
+  ],
+  courtType: [
+    "Découvert",
+    "Couvert"
+  ],
+  players: [
+    { lastName: "Gallais", firstName: "Louis" }
+  ]
+};
+
+let configData = {};
+
+function createArrayInputs(array, listId, type="text") {
+  const listDiv = document.getElementById(listId + '-list');
+  listDiv.innerHTML = "";
+  array.forEach((item, idx) => {
+    const input = document.createElement("input");
+    input.type = type;
+    input.value = item;
+    input.name = listId + "-" + idx;
+    input.className = "array-item";
+    input.required = true;
+    input.placeholder =
+      listId === "hours" ? "Heure (ex: 14, 15, ...)" :
+      listId === "locations" ? "Lieu (ex: Poliveau)" :
+      listId === "courtType" ? "Type de court" :
+      listId === "priceType" ? "Type de tarif" : "";
+    input.style.width = "90%";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "✖";
+    btn.className = "small-btn";
+    btn.title = "Supprimer";
+    btn.onclick = () => { array.splice(idx,1); createArrayInputs(array, listId, type);}
+    const div = document.createElement("div");
+    div.appendChild(input);
+    div.appendChild(btn);
+    listDiv.appendChild(div);
+    // Sync value on input
+    input.oninput = () => { array[idx] = input.value; }
+  });
+}
+
+function createPlayersInputs(players) {
+  const playersDiv = document.getElementById("players-list");
+  playersDiv.innerHTML = "";
+  players.forEach((p, idx) => {
+    const line = document.createElement("div");
+    line.className = "player-row";
+    const inputFirst = document.createElement("input");
+    inputFirst.type = "text";
+    inputFirst.placeholder = "Prénom";
+    inputFirst.value = p.firstName || "";
+    inputFirst.autocomplete = "given-name";
+    inputFirst.required = true;
+    inputFirst.style.width = "44%";
+    inputFirst.oninput = () => { players[idx].firstName = inputFirst.value; };
+    const inputLast = document.createElement("input");
+    inputLast.type = "text";
+    inputLast.placeholder = "Nom";
+    inputLast.value = p.lastName || "";
+    inputLast.autocomplete = "family-name";
+    inputLast.required = true;
+    inputLast.style.width = "44%";
+    inputLast.oninput = () => { players[idx].lastName = inputLast.value; };
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "✖";
+    btn.className = "small-btn";
+    btn.title = "Supprimer ce joueur";
+    btn.onclick = () => { players.splice(idx,1); createPlayersInputs(players); }
+    line.appendChild(inputFirst);
+    line.appendChild(inputLast);
+    line.appendChild(btn);
+    playersDiv.appendChild(line);
+  });
+}
+
+async function loadConfig() {
+  try {
+    const resp = await fetch("config.json");
+    configData = await resp.json();
+  } catch (e) {
+    configData = {...defaultConfig};
+  }
+  // Remplissage des champs
+  document.getElementById("account-email").value = configData.account.email;
+  document.getElementById("account-password").value = configData.account.password;
+  document.getElementById("config-date").value = configData.date;
+
+  createArrayInputs(configData.locations, "locations");
+  createArrayInputs(configData.hours, "hours");
+  createArrayInputs(configData.priceType, "priceType");
+  createArrayInputs(configData.courtType, "courtType");
+  createPlayersInputs(configData.players);
+}
+
+document.getElementById("add-location").onclick = () => {
+  configData.locations.push("");
+  createArrayInputs(configData.locations, "locations");
+}
+document.getElementById("add-hour").onclick = () => {
+  configData.hours.push("");
+  createArrayInputs(configData.hours, "hours");
+}
+document.getElementById("add-priceType").onclick = () => {
+  configData.priceType.push("");
+  createArrayInputs(configData.priceType, "priceType");
+}
+document.getElementById("add-courtType").onclick = () => {
+  configData.courtType.push("");
+  createArrayInputs(configData.courtType, "courtType");
+}
+document.getElementById("add-player").onclick = () => {
+  configData.players.push({firstName:"", lastName:""});
+  createPlayersInputs(configData.players);
+}
+
+document.getElementById("configForm").onsubmit = async function(evt) {
+  evt.preventDefault();
+  // Met à jour les champs simples
+  configData.account.email = document.getElementById("account-email").value;
+  configData.account.password = document.getElementById("account-password").value;
+  configData.date = document.getElementById("config-date").value;
+
+  // Indiquer à l'utilisateur que l'exécution commence
+  const runResultDiv = document.getElementById("run-result");
+  runResultDiv.textContent = "Action en cours...";
+  document.getElementById("run-button").disabled = true;
+
+  try {
+    const response = await fetch("http://localhost:3001/run-action", {
+      method: "POST",
+      body: JSON.stringify(configData),
+      headers: { "Content-Type": "application/json" }
+    });
+    const r = await response.json();
+    if (r.success) {
+      runResultDiv.innerHTML =
+        "<b>Succès !</b><br><pre style='padding:7px;background:#e5ffe5;'>" +
+        (r.output || "(aucune sortie)") + "</pre>";
+    } else {
+      runResultDiv.innerHTML =
+        "<b style='color:#b00;'>Erreur !</b><br>" +
+        (r.error ? "<pre style='color:#b00;background:#ffe0e0;padding:7px;'>" + r.error + "</pre>" : "") +
+        (r.output ? "<br><pre style='background:#fcfcdd;padding:7px;'>" + r.output + "</pre>" : "") +
+        (typeof r.exitCode === "number" ? "<br>Code de sortie : " + r.exitCode : "");
+    }
+  } catch (err) {
+    runResultDiv.innerHTML =
+      "<b style='color:#b00;'>Erreur : impossible de contacter le serveur.</b><br><pre style='color:#b00;background:#ffe0e0;padding:7px;'>" +
+      (err.message || err) +
+      "</pre>";
+  }
+  document.getElementById("run-button").disabled = false;
+  if (document.activeElement) document.activeElement.blur();
+};
+
+window.onload = loadConfig;
+</script>
+</body>
+</html>
