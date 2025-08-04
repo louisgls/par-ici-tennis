@@ -1,432 +1,507 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
   <meta charset="UTF-8" />
-  <title>Éditeur de configuration Tennis</title>
+  <title>Réservations Tennis · Gestion & planification</title>
+
+  <link rel="stylesheet" href="style.css">
   <style>
-    :root {
-      --main-bg: #f5f7fa;
-      --panel-bg: #fff;
-      --primary: #2563eb;
-      --primary-dark: #1d4fd7;
-      --danger: #e11d48;
-      --success: #22c55e;
-      --border: #e0e5ec;
-      --input-bg: #f3f6fb;
-      --input-border: #cbd5e1;
-      --input-focus: #2563eb55;
+    /* Log modal overlay styling */
+    #run-log-modal {
+      position: fixed;
+      left: 0; top: 0; width: 100vw; height: 100vh;
+      z-index: 99890;
+      display: flex; align-items: center; justify-content: center;
     }
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-      background: var(--main-bg);
-      color: #1b2635;
+    #run-log-bg {
+      position: absolute; left:0; top:0; width:100vw; height:100vh;
+      background: rgba(45,66,122,0.32);
+      z-index: 99891;
     }
-    body {
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 30px 8px;
+    #run-log-panel {
+      position: relative;
+      z-index: 99892;
+      min-width: 320px; max-width: 700px; width: 92vw;
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 5px 26px #2563eb2e;
+      padding: 28px 18px 14px 18px;
+      display: flex; flex-direction: column; align-items: stretch;
     }
-    form {
-      background: var(--panel-bg);
-      max-width: 520px;
-      margin: 0 auto;
-      width: 100%;
-      padding: 38px 32px 28px 32px;
-      border-radius: 16px;
-      box-shadow: 0 2px 20px #17386614;
-      border: 1.5px solid var(--border);
-    }
-    h1 {
+    #run-log-header {
+      font-size: 1.18em;
+      font-weight: bold;
+      color: #2563eb;
+      margin-bottom: 14px;
       text-align: center;
-      color: var(--primary-dark);
-      margin-bottom: 28px;
-      font-weight: 800;
-      letter-spacing: -1px;
     }
-    fieldset {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 18px 16px 18px;
-      margin-bottom: 18px;
-      background: #f3f6fb33;
+    #run-log-content {
+      font-size: 0.99em;
+      min-height: 40px;
+      max-height: 38vh;
+      padding: 11px 8px;
+      background: #f7fafd;
+      border: 1px solid #e6e8ed;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      color: #243057;
+      overflow: auto;
+      resize: vertical;
     }
-    legend {
-      color: var(--primary);
-      font-weight: 700;
-      font-size: 1.07em;
-      padding: 0 8px;
+    #run-log-close {
+      max-width: 260px;
+      align-self: center;
     }
+
+    /* Form / label improvement */
     label {
-      display: block;
+      margin-top: 17px !important;
+      margin-bottom: 3px;
+      font-size: 1.04em;
       color: #18315a;
-      margin-top: 18px;
       font-weight: 600;
       letter-spacing: 0.02em;
-      font-size: 1.06em;
-    }
-    input[type="text"], input[type="email"], input[type="password"], input[type="date"] {
-      width: 100%;
-      padding: 10px 11px;
-      margin: 7px 0 0 0;
       display: block;
-      background: var(--input-bg);
-      border: 1.35px solid var(--input-border);
-      border-radius: 7px;
-      font-size: 1em;
-      color: #173866;
-      transition: border-color 0.18s, box-shadow 0.18s;
     }
-    input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus, input[type="date"]:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 2px var(--input-focus);
+    .condensed-fields > div {
+      margin-bottom: 8px;
     }
-    .array-group, .players-group {
-      margin-bottom: 22px;
+    .main-panel fieldset,
+    .main-panel .group,
+    .main-panel .condensed-group,
+    .main-panel .players-group {
+      margin-bottom: 16px;
     }
-    #players-list, #locations-list, #hours-list, #priceType-list, #courtType-list {
+    .main-panel input,
+    .main-panel select {
       margin-top: 6px;
-      margin-bottom: 2px;
-    }
-    .player-row, .array-group div > div {
-      display: flex;
-      gap: 7px;
-      margin-bottom: 6px;
-      align-items: center;
-    }
-    .player-row input, .array-group input {
-      flex: 1 1 0;
-      min-width: 0;
-    }
-    .small-btn {
-      margin-left: 3px;
-      font-size: 0.97em;
-      padding: 0 9px;
-      border-radius: 5px;
-      color: #fff;
-      background: var(--danger);
-      border: none;
-      cursor: pointer;
-      transition: background 0.18s;
-      height: 32px;
-      position: relative;
-      top: 1px;
-      box-shadow: 0 2px 7px #e11d4822;
-      font-weight: 600;
-    }
-    .small-btn:hover {
-      background: #b60b2c;
-    }
-    button[type="button"]:not(.small-btn) {
-      background: var(--primary);
-      color: #fff;
-      padding: 9px 15px;
+      margin-bottom: 4px;
       border-radius: 8px;
-      border: none;
-      cursor: pointer;
       font-size: 1em;
-      margin-top: 10px;
-      font-weight: 600;
-      transition: background 0.17s, filter 0.17s;
-      box-shadow: 0 2px 18px #17386618;
     }
-    button[type="button"]:not(.small-btn):hover {
-      background: var(--primary-dark);
-      filter: brightness(1.1);
+    .main-panel input:focus, .main-panel select:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 1px #2563eb44;
     }
-    button[disabled], .small-btn[disabled] {
-      filter: grayscale(0.5) opacity(0.7);
-      pointer-events: none;
-    }
-    button[type="submit"]#run-button {
-      width: 100%;
-      color: #fff;
-      background: linear-gradient(90deg, var(--primary), var(--primary-dark));
-      font-size: 1.08em;
-      font-weight: 700;
-      padding: 13px 0;
-      border-radius: 10px;
-      border: none;
-      box-shadow: 0 3px 18px #2563eb28;
+    .main-panel .players-group label {
+      margin-bottom: 7px;
       margin-top: 17px;
-      margin-bottom: 2px;
-      transition: background 0.18s, filter 0.14s;
-    }
-    button[type="submit"]#run-button:hover {
-      background: linear-gradient(90deg, var(--primary-dark) 60%, var(--primary) 100%);
-      filter: brightness(1.03);
-    }
-    #run-result {
-      min-height: 40px;
-      margin-top: 22px;
-      font-size: 1.07em;
-    }
-    #run-result pre {
-      border-radius: 7px;
-      padding: 7px 12px;
-      font-size: 0.97em;
-      overflow-x: auto;
-      white-space: pre-wrap;
-      background: #1d334110;
-      border: 1px solid #dde2ee;
-    }
-    #run-result b { display: inline-block; margin-bottom: 7px; }
-    #run-result .success-block {
-      background: #dcfce7;
-      color: #137333;
-      border: 1.2px solid #22c55e44;
-      box-shadow: 0 1px 7px #22c55e18;
-      font-weight: 600;
-    }
-    #run-result .error-block {
-      background: #fdf2f8;
-      color: #b91c1c;
-      border: 1.2px solid #e11d4844;
-      box-shadow: 0 1px 7px #e11d4818;
-      font-weight: 600;
-    }
-    @media (max-width: 700px) {
-      body { padding: 10px 0; }
-      form { padding: 12px 4vw 24px 4vw; }
-      h1 { font-size: 1.2em; }
     }
   </style>
+
+  </style>
 </head>
+
 <body>
-  <h1>Éditeur de configuration Tennis</h1>
-  <form id="configForm">
-    <fieldset>
-      <legend>Identifiants Compte Tennis</legend>
-      <label for="account-email">Adresse e-mail :</label>
-      <input type="email" name="account.email" id="account-email" autocomplete="username" required autofocus placeholder="Adresse e-mail du compte" />
-      <label for="account-password">Mot de passe :</label>
-      <input type="password" name="account.password" id="account-password" autocomplete="current-password" required placeholder="Mot de passe" />
-    </fieldset>
-    <label for="config-date">Date*</label>
-    <input type="text" name="date" id="config-date" required placeholder="JJ/MM/AAAA ou similaire" />
-
-    <div class="array-group">
-      <label for="locations-list">Lieux à tester :</label>
-      <div id="locations-list"></div>
-      <button type="button" id="add-location" class="small-btn">+ ajouter un lieu</button>
+  <!-- Log Modal (hidden by default) -->
+  <div id="run-log-modal" style="display:none;">
+    <div id="run-log-bg"></div>
+    <div id="run-log-panel">
+      <div id="run-log-header">⏳ Running Reservation</div>
+      <pre id="run-log-content"></pre>
+      <button id="run-log-close" class="main-btn" type="button" style="margin-top:12px;margin-bottom:12px;">Close</button>
     </div>
-
-    <div class="array-group">
-      <label for="hours-list">Heures proposées :</label>
-      <div id="hours-list"></div>
-      <button type="button" id="add-hour" class="small-btn">+ ajouter une heure</button>
+  </div>
+  <div class="wrapper-app">
+    <!-- Authentification panel -->
+    <div class="auth-panel">
+      <h2 style="color:var(--primary-dark);font-size:1.09em;text-align:center;margin-top:2px;margin-bottom:8px;">
+        Identifiants globaux</h2>
+      <fieldset>
+        <legend>Compte tennis</legend>
+        <label for="account-email">Adresse e-mail :</label>
+        <input type="email" id="account-email" placeholder="Adresse e-mail" autocomplete="username" required />
+        <label for="account-password">Mot de passe :</label>
+        <input type="password" id="account-password" placeholder="Mot de passe" autocomplete="current-password"
+          required />
+      </fieldset>
+      <button id="auth-save" type="button" class="main-btn" style="width:100%;margin-top:8px;margin-bottom:4px;">Enregistrer</button>
+      <div id="auth-result" style="font-size:0.98em;padding-top:1px;min-height:18px;"></div>
     </div>
+    <!-- Main reservation panel -->
+    <div class="main-panel">
+      <h1>Planification de réservations</h1>
+      <form id="newResaForm" autocomplete="off">
+        <div class="group condensed-group" style="margin-bottom:10px;">
+          <div class="condensed-fields">
+            <div>
+              <label for="datepicker">Jour</label>
+              <input type="date" id="datepicker" required style="width:99%;" />
+            </div>
+            <div>
+              <label for="hour">Heure</label>
+              <select id="hour" required style="width:98%;">
+                <!-- Options de 08 à 22 générées dynamiquement -->
+              </select>
+            </div>
+            <div>
+              <label for="location">Lieu</label>
+              <input type="text" id="location" required placeholder="Lieu" />
+            </div>
+          </div>
+        </div>
+        <div class="group">
+          <div class="condensed-fields">
+            <div>
+              <label for="priceType">Tarif</label>
+              <select id="priceType" multiple required style="min-width: 115px;height:38px;">
+                <option value="Tarif plein">Tarif plein</option>
+                <option value="Tarif réduit">Tarif réduit</option>
+              </select>
+            </div>
+            <div>
+              <label for="courtType">Type de court</label>
+              <select id="courtType" multiple required style="min-width: 115px;height:38px;">
+                <option value="Découvert">Découvert</option>
+                <option value="Couvert">Couvert</option>
+              </select>
+            </div>
+            <div>
+              <label for="plan-time">Planifier lancement à</label>
+              <input type="time" id="plan-time" required value="00:00" />
+            </div>
+          </div>
+        </div>
+        <div class="players-group">
+          <label>Joueurs :</label>
+          <div id="players-list"></div>
+          <button type="button" id="add-player" class="small-btn">+ ajouter un joueur</button>
+        </div>
+        <button type="submit" id="plan-button" class="main-btn">Planifier la réservation</button>
+        <div id="plan-result"></div>
+      </form>
 
-    <div class="array-group">
-      <label for="priceType-list">Types de tarif :</label>
-      <div id="priceType-list"></div>
-      <button type="button" id="add-priceType" class="small-btn">+ ajouter un type de tarif</button>
+      <div id="reservations-list"></div>
     </div>
+  </div>
 
-    <div class="array-group">
-      <label for="courtType-list">Types de court :</label>
-      <div id="courtType-list"></div>
-      <button type="button" id="add-courtType" class="small-btn">+ ajouter un type de court</button>
-    </div>
+  <!-- Default form values configuration -->
+  <script src="form-defaults.js"></script>
+  <script>
+    // État global simplifié
+    const globalAuth = {
+      email: "",
+      password: ""
+    };
 
-    <div class="players-group">
-      <label for="players-list">Joueurs :</label>
-      <div id="players-list"></div>
-      <button type="button" id="add-player" class="small-btn">+ ajouter un joueur</button>
-      <div style="font-size:0.93em;color:#777;margin-top:2px;">(Indiquez prénom et nom, ajoutez un joueur par clic)</div>
-    </div>
 
-    <hr/>
-    <button type="submit" id="run-button">Lancer l'action</button>
-    <div id="run-result" style="margin-top:20px;"></div>
-  </form>
-<script>
-/**
- * Structure par défaut (utilisée si fetch échoue) : prise sur config.json réel
- */
-const defaultConfig = {
-  account: {
-    email: "louis.gallais@gmail.com",
-    password: "12345"
-  },
-  locations: [
-    "Valeyre",
-    "Suzanne Lenglen",
-    "Poliveau"
-  ],
-  date: "9/10/2021",
-  hours: [
-    "18",
-    "19",
-    "20"
-  ],
-  priceType: [
-    "Tarif plein",
-    "Tarif réduit"
-  ],
-  courtType: [
-    "Découvert",
-    "Couvert"
-  ],
-  players: [
-    { lastName: "Gallais", firstName: "Louis" }
-  ]
+    let reservations = []; // Liste synchronisée avec le backend
+
+    // Apply FORM_DEFAULTS players if defined, else use fallback
+    let playersList = (window.FORM_DEFAULTS && Array.isArray(FORM_DEFAULTS.players) && FORM_DEFAULTS.players.length)
+      ? FORM_DEFAULTS.players.map(p => ({ ...p }))
+      : [{ firstName: "Louis", lastName: "Gallais" }];
+
+    function pad2(x) { return (x < 10 ? '0' : '') + x }
+    function toJJMMAAAA_fromISO(dateValue) {
+      // yyyy-mm-dd → dd/mm/yyyy
+      if (!dateValue) return "";
+      const [y, m, d] = dateValue.split("-");
+      if (!y || !m || !d) return dateValue;
+      return pad2(+d) + "/" + pad2(+m) + "/" + y;
+    }
+    function fromJJMMAAAAtoISO(fr) {
+      const m = fr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) return m[3] + "-" + pad2(+m[2]) + "-" + pad2(+m[1]);
+      return "";
+    }
+
+    function saveAuthToLocal() {
+      globalAuth.email = document.getElementById("account-email").value;
+      globalAuth.password = document.getElementById("account-password").value;
+      localStorage.setItem("scrappyAuth", JSON.stringify(globalAuth));
+      document.getElementById("auth-result").innerText = "Identifiants enregistrés.";
+      setTimeout(() => { document.getElementById("auth-result").innerText = ""; }, 1300);
+    }
+    function loadAuthFromLocal() {
+      try {
+        const s = JSON.parse(localStorage.getItem("scrappyAuth"));
+        if (s && s.email) globalAuth.email = document.getElementById("account-email").value = s.email;
+        if (s && s.password) globalAuth.password = document.getElementById("account-password").value = s.password;
+      } catch { }
+    }
+
+    // Partie joueurs dynamique
+    function renderPlayersInputs() {
+      const playersDiv = document.getElementById("players-list");
+      playersDiv.innerHTML = "";
+      playersList.forEach((p, idx) => {
+        const line = document.createElement("div");
+        line.className = "player-row";
+        const inputFirst = document.createElement("input");
+        inputFirst.type = "text";
+        inputFirst.placeholder = "Prénom";
+        inputFirst.value = p.firstName || "";
+        inputFirst.required = true;
+        inputFirst.style.width = "44%";
+        inputFirst.oninput = () => { playersList[idx].firstName = inputFirst.value; };
+        const inputLast = document.createElement("input");
+        inputLast.type = "text";
+        inputLast.placeholder = "Nom";
+        inputLast.value = p.lastName || "";
+        inputLast.required = true;
+        inputLast.style.width = "44%";
+        inputLast.oninput = () => { playersList[idx].lastName = inputLast.value; };
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = "✖";
+        btn.className = "small-btn";
+        btn.onclick = () => { playersList.splice(idx, 1); renderPlayersInputs(); }
+        line.appendChild(inputFirst);
+        line.appendChild(inputLast);
+        line.appendChild(btn);
+        playersDiv.appendChild(line);
+      });
+    }
+    document.getElementById("add-player").onclick = () => {
+      playersList.push({ firstName: "", lastName: "" });
+      renderPlayersInputs();
+    };
+
+
+    document.getElementById("auth-save").onclick = saveAuthToLocal;
+
+// Fetch all reservations from backend and update the state and UI
+async function fetchAndRenderReservations() {
+  // Calls GET /api/reservations to get reservations from backend
+  try {
+    const resp = await fetch("/api/reservations");
+    reservations = await resp.json();
+    renderReservations();
+  } catch (err) {
+    reservations = [];
+    renderReservations();
+  }
+}
+
+// Render all reservations in the UI (called after any CRUD operation)
+function renderReservations() {
+  const cont = document.getElementById("reservations-list");
+  cont.innerHTML = "<h3 style='margin:0 0 10px 0;color:#2057ce;'>Planified reservations</h3>";
+  if (!reservations.length) {
+    cont.innerHTML += "<div style='color:#888;margin:6px 0;'>No active reservation.</div>";
+    return;
+  }
+  reservations.forEach((resa) => {
+    cont.innerHTML += `
+      <div class="reservation-row">
+        <div class="reservation-info">
+          <span><b>${resa.date} ${resa.hour}</b></span>
+          <span style='margin-left:8px'>${resa.location || "Location?"}</span>
+          <span style='margin-left:7px;'>${resa.priceType || ""} ${resa.courtType || ""}</span>
+          <span style='margin-left:7px;'>${(resa.players || []).map(p => p.firstName + " " + p.lastName).join(", ")}</span>
+        </div>
+        <div class="reservation-status ${resa.status}">
+          ${resa.status === "pending" ? "Planified for " + resa.planTime :
+              resa.status === "started" ? "Started" :
+                resa.status === "ok" ? "Completed" : "Failed"}
+        </div>
+        <div class="reservation-actions">
+          <button class="small-btn" style="background:#2563eb;" onclick="startReservation('${resa.id}')">▶</button>
+          <button class="small-btn" style="background:#535c7b;" onclick="removeReservation('${resa.id}')">✕</button>
+        </div>
+      </div>
+      `;
+  });
+}
+
+// Delete a reservation by id (calls backend then refreshes UI)
+window.removeReservation = async function (id) {
+  if (!id) return;
+  await fetch(`/api/reservations/${id}`, { method: "DELETE" });
+  await fetchAndRenderReservations();
 };
 
-let configData = {};
+// Start a reservation by id (calls backend with current globalAuth)
+// Start a reservation by id (calls backend with current globalAuth)
+window.startReservation = async function (id) {
+  const r = reservations.find(x => x.id === id);
+  if (!r) return;
+  r.status = "started";
+  renderReservations();
 
-function createArrayInputs(array, listId, type="text") {
-  const listDiv = document.getElementById(listId + '-list');
-  listDiv.innerHTML = "";
-  array.forEach((item, idx) => {
-    const input = document.createElement("input");
-    input.type = type;
-    input.value = item;
-    input.name = listId + "-" + idx;
-    input.className = "array-item";
-    input.required = true;
-    input.placeholder =
-      listId === "hours" ? "Heure (ex: 14, 15, ...)" :
-      listId === "locations" ? "Lieu (ex: Poliveau)" :
-      listId === "courtType" ? "Type de court" :
-      listId === "priceType" ? "Type de tarif" : "";
-    input.style.width = "90%";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "✖";
-    btn.className = "small-btn";
-    btn.title = "Supprimer";
-    btn.onclick = () => { array.splice(idx,1); createArrayInputs(array, listId, type);}
-    const div = document.createElement("div");
-    div.appendChild(input);
-    div.appendChild(btn);
-    listDiv.appendChild(div);
-    // Sync value on input
-    input.oninput = () => { array[idx] = input.value; }
-  });
-}
-
-function createPlayersInputs(players) {
-  const playersDiv = document.getElementById("players-list");
-  playersDiv.innerHTML = "";
-  players.forEach((p, idx) => {
-    const line = document.createElement("div");
-    line.className = "player-row";
-    const inputFirst = document.createElement("input");
-    inputFirst.type = "text";
-    inputFirst.placeholder = "Prénom";
-    inputFirst.value = p.firstName || "";
-    inputFirst.autocomplete = "given-name";
-    inputFirst.required = true;
-    inputFirst.style.width = "44%";
-    inputFirst.oninput = () => { players[idx].firstName = inputFirst.value; };
-    const inputLast = document.createElement("input");
-    inputLast.type = "text";
-    inputLast.placeholder = "Nom";
-    inputLast.value = p.lastName || "";
-    inputLast.autocomplete = "family-name";
-    inputLast.required = true;
-    inputLast.style.width = "44%";
-    inputLast.oninput = () => { players[idx].lastName = inputLast.value; };
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "✖";
-    btn.className = "small-btn";
-    btn.title = "Supprimer ce joueur";
-    btn.onclick = () => { players.splice(idx,1); createPlayersInputs(players); }
-    line.appendChild(inputFirst);
-    line.appendChild(inputLast);
-    line.appendChild(btn);
-    playersDiv.appendChild(line);
-  });
-}
-
-async function loadConfig() {
-  try {
-    const resp = await fetch("config.json");
-    configData = await resp.json();
-  } catch (e) {
-    configData = {...defaultConfig};
+  // Log modal opener
+  function showLogModal(logText = "", instant = false) {
+    const modal = document.getElementById('run-log-modal');
+    const pre = document.getElementById('run-log-content');
+    modal.style.display = "flex";
+    pre.textContent = logText;
+    if (!instant) pre.scrollTop = pre.scrollHeight;
   }
-  // Remplissage des champs
-  document.getElementById("account-email").value = configData.account.email;
-  document.getElementById("account-password").value = configData.account.password;
-  document.getElementById("config-date").value = configData.date;
+  function hideLogModal() {
+    document.getElementById('run-log-modal').style.display = "none";
+  }
+  document.getElementById('run-log-close').onclick = hideLogModal;
+  // Open with loading message
+  showLogModal("Lancement réservation...");
 
-  createArrayInputs(configData.locations, "locations");
-  createArrayInputs(configData.hours, "hours");
-  createArrayInputs(configData.priceType, "priceType");
-  createArrayInputs(configData.courtType, "courtType");
-  createPlayersInputs(configData.players);
-}
+  // Sends booking request to the backend (run-action)
+  const configPayload = {
+    account: { email: globalAuth.email, password: globalAuth.password },
+    locations: [r.location],
+    date: r.date,
+    hours: [r.hour], // now always ["08"]...["22"] as string
+    priceType: [r.priceType],
+    courtType: [r.courtType],
+    players: r.players
+  };
 
-document.getElementById("add-location").onclick = () => {
-  configData.locations.push("");
-  createArrayInputs(configData.locations, "locations");
-}
-document.getElementById("add-hour").onclick = () => {
-  configData.hours.push("");
-  createArrayInputs(configData.hours, "hours");
-}
-document.getElementById("add-priceType").onclick = () => {
-  configData.priceType.push("");
-  createArrayInputs(configData.priceType, "priceType");
-}
-document.getElementById("add-courtType").onclick = () => {
-  configData.courtType.push("");
-  createArrayInputs(configData.courtType, "courtType");
-}
-document.getElementById("add-player").onclick = () => {
-  configData.players.push({firstName:"", lastName:""});
-  createPlayersInputs(configData.players);
-}
+  // Affiche les logs en live (fetch/stream) ou à la fin (fallback), met à jour le statut
+  // Timeout fail auto si pas de succès en 110s
+  let aborted = false, finished = false;
+  let timer = setTimeout(() => {
+    if (!finished) {
+      aborted = true;
+      showLogModal("⛔ Timeout : réservation non finalisée après 110 secondes.\nEssayez avec d'autres paramètres.");
+      r.status = "failed";
+      renderReservations();
+      updateReservationStatus(r.id, "failed");
+    }
+  }, 110000);
 
-document.getElementById("configForm").onsubmit = async function(evt) {
-  evt.preventDefault();
-  // Met à jour les champs simples
-  configData.account.email = document.getElementById("account-email").value;
-  configData.account.password = document.getElementById("account-password").value;
-  configData.date = document.getElementById("config-date").value;
-
-  // Indiquer à l'utilisateur que l'exécution commence
-  const runResultDiv = document.getElementById("run-result");
-  runResultDiv.textContent = "Action en cours...";
-  document.getElementById("run-button").disabled = true;
+  // Utilitaire de mise à jour backend status
+  async function updateReservationStatus(resaId, stat) {
+    await fetch(`/api/reservations/${resaId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: stat })
+    });
+    await fetchAndRenderReservations();
+  }
 
   try {
-    const response = await fetch("http://localhost:3001/run-action", {
+    const resp = await fetch("http://localhost:3001/run-action", {
       method: "POST",
-      body: JSON.stringify(configData),
+      body: JSON.stringify(configPayload),
       headers: { "Content-Type": "application/json" }
     });
-    const r = await response.json();
-    if (r.success) {
-      runResultDiv.innerHTML =
-        "<b>Succès !</b><br><pre style='padding:7px;background:#e5ffe5;'>" +
-        (r.output || "(aucune sortie)") + "</pre>";
+    const data = await resp.json();
+    finished = true;
+    clearTimeout(timer);
+
+    // Affiche logs "live" capturés sur UI
+    let alllogs = "";
+    if (data.output) alllogs += data.output;
+    if (data.error) alllogs += "\n[stderr] " + data.error;
+    showLogModal(alllogs + `\n${data.success ? "✅ Réservation validée !" : "❌ Échec de la réservation."}`);
+    if (data.success || data.detectedSuccess) {
+      r.status = "ok";
+      await updateReservationStatus(r.id, "ok");
     } else {
-      runResultDiv.innerHTML =
-        "<b style='color:#b00;'>Erreur !</b><br>" +
-        (r.error ? "<pre style='color:#b00;background:#ffe0e0;padding:7px;'>" + r.error + "</pre>" : "") +
-        (r.output ? "<br><pre style='background:#fcfcdd;padding:7px;'>" + r.output + "</pre>" : "") +
-        (typeof r.exitCode === "number" ? "<br>Code de sortie : " + r.exitCode : "");
+      r.status = "failed";
+      await updateReservationStatus(r.id, "failed");
     }
   } catch (err) {
-    runResultDiv.innerHTML =
-      "<b style='color:#b00;'>Erreur : impossible de contacter le serveur.</b><br><pre style='color:#b00;background:#ffe0e0;padding:7px;'>" +
-      (err.message || err) +
-      "</pre>";
+    finished = true;
+    clearTimeout(timer);
+    showLogModal("Erreur réseau / backend : " + (err.message || err));
+    r.status = "failed";
+    await updateReservationStatus(r.id, "failed");
   }
-  document.getElementById("run-button").disabled = false;
-  if (document.activeElement) document.activeElement.blur();
 };
 
-window.onload = loadConfig;
+// Handle form submission: create reservations in backend for each combination (calls POST /api/reservations)
+document.getElementById("newResaForm").onsubmit = async function (e) {
+  e.preventDefault();
+  const date = document.getElementById("datepicker").value;
+  const hour = document.getElementById("hour").value;
+  const location = document.getElementById("location").value.trim();
+  const priceTypeSel = document.getElementById("priceType");
+  const courtTypeSel = document.getElementById("courtType");
+  const priceType = Array.from(priceTypeSel.selectedOptions).map(o => o.value).filter(Boolean);
+  const courtType = Array.from(courtTypeSel.selectedOptions).map(o => o.value).filter(Boolean);
+  const planTime = document.getElementById("plan-time").value;
+  const players = playersList.map(p => ({ ...p }));
+
+  if (!date || !hour || !location || !priceType.length || !courtType.length || !players.length) {
+    document.getElementById("plan-result").innerText = "Please complete all fields.";
+    return;
+  }
+  // For each combination, create reservation via backend
+  for (const pt of priceType) {
+    for (const ct of courtType) {
+      const resa = {
+        date: toJJMMAAAA_fromISO(date),
+        hour: hour,
+        location,
+        priceType: pt,
+        courtType: ct,
+        players,
+        planTime,
+        status: "pending"
+      };
+      await fetch("/api/reservations", {
+        method: "POST",
+        body: JSON.stringify(resa),
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+  }
+  await fetchAndRenderReservations();
+  document.getElementById("plan-result").innerText = "Reservation(s) added.";
+  setTimeout(() => { document.getElementById("plan-result").innerText = ""; }, 1100);
+};
+
+// On window load, fetch all current reservations and show UI
+// On window load, fetch all current reservations and show UI
+// On window load, setup form values from FORM_DEFAULTS and fetch data
+window.onload = () => {
+  loadAuthFromLocal();
+
+  // Populate hour dropdown with values 08..22
+  const hourSelect = document.getElementById("hour");
+  hourSelect.innerHTML = "";
+  for (let h = 8; h <= 22; h++) {
+    const val = pad2(h);
+    const opt = document.createElement("option");
+    opt.value = val;
+    opt.innerText = val;
+    hourSelect.appendChild(opt);
+  }
+
+  // Set input defaults from FORM_DEFAULTS if present
+  if (window.FORM_DEFAULTS) {
+    // Date input
+    let dateDefault = FORM_DEFAULTS.date;
+    if (!dateDefault) {
+      // Default to today
+      const today = new Date();
+      dateDefault = today.getFullYear() + "-" +
+        pad2(today.getMonth() + 1) + "-" + pad2(today.getDate());
+    }
+    document.getElementById("datepicker").value = dateDefault;
+
+    // Hour dropdown
+    if (FORM_DEFAULTS.hour && hourSelect.querySelector(`[value="${FORM_DEFAULTS.hour}"]`))
+      hourSelect.value = FORM_DEFAULTS.hour;
+
+    // Location
+    if (FORM_DEFAULTS.location)
+      document.getElementById("location").value = FORM_DEFAULTS.location;
+
+    // PlanTime
+    if (FORM_DEFAULTS.planTime)
+      document.getElementById("plan-time").value = FORM_DEFAULTS.planTime;
+
+    // priceType (multi)
+    if (Array.isArray(FORM_DEFAULTS.priceType)) {
+      const sel = document.getElementById("priceType");
+      Array.from(sel.options).forEach(opt =>
+        opt.selected = FORM_DEFAULTS.priceType.includes(opt.value));
+    }
+    // courtType (multi)
+    if (Array.isArray(FORM_DEFAULTS.courtType)) {
+      const sel = document.getElementById("courtType");
+      Array.from(sel.options).forEach(opt =>
+        opt.selected = FORM_DEFAULTS.courtType.includes(opt.value));
+    }
+  }
+
+  renderPlayersInputs();
+  fetchAndRenderReservations();
+};
 </script>
 </body>
+
 </html>

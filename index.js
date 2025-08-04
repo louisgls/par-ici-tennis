@@ -14,7 +14,7 @@ const bookTennis = async () => {
   }
 
   console.log(`${dayjs().format()} - Starting searching tennis`)
-  const browser = await chromium.launch({ headless: true, slowMo: 0, timeout: 120000 })
+  const browser = await chromium.launch({ headless: true, slowMo: 20, timeout: 120000 })
 
   console.log(`${dayjs().format()} - Browser started`)
   const page = await browser.newPage()
@@ -176,7 +176,6 @@ const bookTennis = async () => {
     await page.screenshot({ path: 'img/failure.png' })
   }
 
-  await browser.close()
 }
 
 bookTennis()
