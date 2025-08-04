@@ -468,7 +468,8 @@ document.getElementById("newResaForm").onsubmit = async function (e) {
         courtType: ct,
         players,
         planTime,
-        status: "pending"
+        status: "pending",
+        account: { ...globalAuth } // Embed the credentials in the reservation
       };
       await fetch("/api/reservations", {
         method: "POST",

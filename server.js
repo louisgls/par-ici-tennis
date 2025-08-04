@@ -5,6 +5,8 @@ import fs from "fs/promises";
 import { spawn } from "child_process";
 import path from "path";
 import crypto from "crypto";
+import { startScheduler } from "./scheduler.js";
+import { executeReservation } from "./runner.js";
 
 const app = express(); // Must be initialized BEFORE any route
 app.use(express.json());
@@ -103,9 +105,6 @@ app.delete("/api/reservations/:id", async (req, res) => {
 // --- Real-time Logging and Execution API ---
 
 const PORT = 3001;
-const CONFIG_PATH = path.resolve("./config.json");
-const INDEXJS_PATH = path.resolve("./index.js");
-
 app.use(express.static("."));
 
 // Endpoint for the client to connect for live log streaming
@@ -127,52 +126,47 @@ app.get('/api/run-stream/:runId', (req, res) => {
     });
 });
 
-// Endpoint to start the reservation process
+// Endpoint to start the reservation process, now using the runner
 app.post("/run-action", async (req, res) => {
     try {
         const config = req.body;
-        const runId = config.reservationId || crypto.randomUUID();
+        const runId = config.reservationId;
 
-        if (!config.reservationId) {
+        if (!runId) {
             return res.status(400).json({ success: false, error: "Missing reservationId" });
         }
 
+        // Immediately respond to the client so it can connect to the SSE stream
+        res.status(202).json({ success: true, runId });
+
         console.log(`[RUN-ACTION] Starting for runId: ${runId}`);
-        await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
 
-        const child = spawn("node", [INDEXJS_PATH, "--no-close"], { cwd: process.cwd(), stdio: "pipe" });
-        activeRuns.set(runId, child);
-
-        const sendEvent = (data) => {
+        // Define the onLog callback to stream data to the SSE client
+        const onLog = (log) => {
             const client = sseClients.get(runId);
             if (client) {
-                // Split multiline logs into individual SSE messages
-                const lines = data.toString().trim().split('\n');
+                const lines = log.toString().trim().split('\n');
                 for (const line of lines) {
                     client.write(`data: ${JSON.stringify({ type: 'log', message: line })}\n\n`);
                 }
             }
         };
 
-        child.stdout.on("data", sendEvent);
-        child.stderr.on("data", sendEvent);
+        // Execute the reservation and wait for the result, passing the activeRuns map for cancellation tracking
+        const result = await executeReservation(config, activeRuns, onLog);
 
-        child.on("close", (code) => {
-            console.log(`[RUN-ACTION] Finished for runId: ${runId} with code ${code}`);
-            const client = sseClients.get(runId);
-            if (client) {
-                const success = code === 0;
-                client.write(`data: ${JSON.stringify({ type: 'result', success, exitCode: code })}\n\n`);
-                client.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
-                client.end();
-            }
-            activeRuns.delete(runId);
-            sseClients.delete(runId);
-        });
-
-        res.status(202).json({ success: true, runId });
+        // When done, send the final result and close the SSE connection
+        const client = sseClients.get(runId);
+        if (client) {
+            console.log(`[RUN-ACTION] Finished for runId: ${runId} with code ${result.exitCode}`);
+            client.write(`data: ${JSON.stringify({ type: 'result', success: result.success, exitCode: result.exitCode })}\n\n`);
+            client.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
+            client.end();
+        }
+        sseClients.delete(runId);
 
     } catch (err) {
+        // This will catch errors in the initial setup, not in the async runner
         res.status(500).json({ success: false, error: err.message || String(err) });
     }
 });
@@ -202,4 +196,6 @@ app.post("/api/cancel-run/:id", (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Backend tennis configurateur listening on http://localhost:${PORT}/`);
+    // Start the reservation scheduler
+    startScheduler();
 });

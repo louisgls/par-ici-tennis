@@ -184,16 +184,20 @@ const bookTennis = async () => {
       submit.evaluate(el => el.classList.remove('hide'))
       await submit.click()
 
-      await page.waitForSelector('.confirmReservation')
+      // Wait for the specific confirmation text to appear
+      await page.waitForSelector('div.confirmReservation:has-text("Réservation confirmée")', { timeout: 15000 });
       console.log("Step 8: Reservation confirmation page reached.");
 
-      console.log(`${dayjs().format()} - Réservation faite : ${await (
+      // Log the definitive success message for the backend to detect
+      console.log("✅ RESERVATION SUCCESS: Confirmation text found.");
+
+      console.log(`--> Details: ${await (
         await (await page.$('.address')).textContent()
       ).trim().replace(/( ){2,}/g, ' ')}`)
-      console.log(`pour le ${await (
+      console.log(`--> Date: ${await (
         await (await page.$('.date')).textContent()
       ).trim().replace(/( ){2,}/g, ' ')}`)
-      console.log(`sur le ${await (
+      console.log(`--> Court: ${await (
         await (await page.$('.court')).textContent()
       ).trim().replace(/( ){2,}/g, ' ')}`)
       break
