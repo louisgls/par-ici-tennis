@@ -100,7 +100,7 @@
     <div id="run-log-panel">
       <div id="run-log-header">⏳ Running Reservation</div>
       <pre id="run-log-content"></pre>
-      <button id="run-log-close" class="main-btn" type="button" style="margin-top:12px;margin-bottom:12px;">Close</button>
+      <button id="run-log-cancel" class="main-btn" type="button" style="margin-top:12px;margin-bottom:12px;background: #a13d5e;">Cancel</button>
     </div>
   </div>
   <div class="wrapper-app">
@@ -137,7 +137,9 @@
             </div>
             <div>
               <label for="location">Lieu</label>
-              <input type="text" id="location" required placeholder="Lieu" />
+              <select id="location" required>
+                <!-- Options will be populated dynamically -->
+              </select>
             </div>
           </div>
         </div>
@@ -295,7 +297,8 @@ function renderReservations() {
         <div class="reservation-status ${resa.status}">
           ${resa.status === "pending" ? "Planified for " + resa.planTime :
               resa.status === "started" ? "Started" :
-                resa.status === "ok" ? "Completed" : "Failed"}
+                resa.status === "ok" ? "Completed" :
+                  resa.status === "cancelled" ? "Cancelled" : "Failed"}
         </div>
         <div class="reservation-actions">
           <button class="small-btn" style="background:#2563eb;" onclick="startReservation('${resa.id}')">▶</button>
@@ -321,83 +324,119 @@ window.startReservation = async function (id) {
   r.status = "started";
   renderReservations();
 
-  // Log modal opener
-  function showLogModal(logText = "", instant = false) {
-    const modal = document.getElementById('run-log-modal');
-    const pre = document.getElementById('run-log-content');
-    modal.style.display = "flex";
-    pre.textContent = logText;
-    if (!instant) pre.scrollTop = pre.scrollHeight;
-  }
-  function hideLogModal() {
-    document.getElementById('run-log-modal').style.display = "none";
-  }
-  document.getElementById('run-log-close').onclick = hideLogModal;
-  // Open with loading message
-  showLogModal("Lancement réservation...");
+  const modal = document.getElementById('run-log-modal');
+  const logContent = document.getElementById('run-log-content');
+  const cancelButton = document.getElementById('run-log-cancel');
+  let eventSource;
 
-  // Sends booking request to the backend (run-action)
+  function showLogModal(text) {
+    logContent.textContent = text;
+    modal.style.display = "flex";
+  }
+
+  function appendLog(text) {
+    logContent.textContent += `\n${text}`;
+    logContent.scrollTop = logContent.scrollHeight;
+  }
+
+  function hideLogModal() {
+    if (eventSource) {
+      eventSource.close();
+    }
+    modal.style.display = "none";
+  }
+
+  async function updateReservationStatus(status) {
+    await fetch(`/api/reservations/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: status })
+    });
+    await fetchAndRenderReservations();
+  }
+
+  showLogModal("Initiating reservation process...");
+
   const configPayload = {
+    reservationId: r.id,
     account: { email: globalAuth.email, password: globalAuth.password },
     locations: [r.location],
     date: r.date,
-    hours: [r.hour], // now always ["08"]...["22"] as string
+    hours: [r.hour],
     priceType: [r.priceType],
     courtType: [r.courtType],
     players: r.players
   };
 
-  // Affiche les logs en live (fetch/stream) ou à la fin (fallback), met à jour le statut
-  // Timeout fail auto si pas de succès en 110s
-  let aborted = false, finished = false;
-  let timer = setTimeout(() => {
-    if (!finished) {
-      aborted = true;
-      showLogModal("⛔ Timeout : réservation non finalisée après 110 secondes.\nEssayez avec d'autres paramètres.");
-      r.status = "failed";
-      renderReservations();
-      updateReservationStatus(r.id, "failed");
-    }
-  }, 110000);
-
-  // Utilitaire de mise à jour backend status
-  async function updateReservationStatus(resaId, stat) {
-    await fetch(`/api/reservations/${resaId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: stat })
-    });
-    await fetchAndRenderReservations();
-  }
-
   try {
-    const resp = await fetch("http://localhost:3001/run-action", {
+    const runResponse = await fetch("/run-action", {
       method: "POST",
       body: JSON.stringify(configPayload),
       headers: { "Content-Type": "application/json" }
     });
-    const data = await resp.json();
-    finished = true;
-    clearTimeout(timer);
 
-    // Affiche logs "live" capturés sur UI
-    let alllogs = "";
-    if (data.output) alllogs += data.output;
-    if (data.error) alllogs += "\n[stderr] " + data.error;
-    showLogModal(alllogs + `\n${data.success ? "✅ Réservation validée !" : "❌ Échec de la réservation."}`);
-    if (data.success || data.detectedSuccess) {
-      r.status = "ok";
-      await updateReservationStatus(r.id, "ok");
-    } else {
-      r.status = "failed";
-      await updateReservationStatus(r.id, "failed");
+    if (!runResponse.ok) {
+      throw new Error(`Failed to start process: ${await runResponse.text()}`);
     }
+
+    const { runId } = await runResponse.json();
+
+    eventSource = new EventSource(`/api/run-stream/${runId}`);
+
+    cancelButton.onclick = async () => {
+      eventSource.close();
+      await fetch(`/api/cancel-run/${runId}`, { method: "POST" });
+      await updateReservationStatus("cancelled");
+      hideLogModal();
+    };
+
+    // We need a separate close button now
+    const closeButton = document.createElement('button');
+    closeButton.id = 'run-log-close-final';
+    closeButton.className = 'main-btn';
+    closeButton.textContent = 'Close';
+    closeButton.style.display = 'none';
+    closeButton.onclick = hideLogModal;
+    if (!document.getElementById('run-log-close-final')) {
+        cancelButton.parentNode.appendChild(closeButton);
+    }
+
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      switch (data.type) {
+        case 'log':
+          appendLog(data.message);
+          break;
+        case 'event':
+          appendLog(`[SYSTEM] ${data.message}`);
+          break;
+        case 'result':
+          const finalStatus = data.success ? "ok" : "failed";
+          appendLog(`\n--- Process Finished ---`);
+          appendLog(data.success ? "✅ Reservation Succeeded" : "❌ Reservation Failed");
+          updateReservationStatus(finalStatus);
+          break;
+        case 'end':
+          appendLog('[SYSTEM] Log stream ended.');
+          eventSource.close();
+          cancelButton.style.display = 'none';
+          closeButton.style.display = 'block';
+          break;
+      }
+    };
+
+    eventSource.onerror = () => {
+      appendLog("[SYSTEM] Error: Connection to log stream lost.");
+      updateReservationStatus("failed");
+      eventSource.close();
+      cancelButton.style.display = 'none';
+      closeButton.style.display = 'block';
+    };
+
   } catch (err) {
-    finished = true;
-    clearTimeout(timer);
-    showLogModal("Erreur réseau / backend : " + (err.message || err));
-    r.status = "failed";
-    await updateReservationStatus(r.id, "failed");
+    showLogModal(`Error: ${err.message}`);
+    updateReservationStatus("failed");
   }
 };
 
@@ -462,23 +501,30 @@ window.onload = () => {
 
   // Set input defaults from FORM_DEFAULTS if present
   if (window.FORM_DEFAULTS) {
-    // Date input
-    let dateDefault = FORM_DEFAULTS.date;
-    if (!dateDefault) {
-      // Default to today
-      const today = new Date();
-      dateDefault = today.getFullYear() + "-" +
-        pad2(today.getMonth() + 1) + "-" + pad2(today.getDate());
+    // Populate locations dropdown
+    const locationSelect = document.getElementById("location");
+    if (Array.isArray(FORM_DEFAULTS.locations)) {
+      locationSelect.innerHTML = ""; // Clear existing options
+      FORM_DEFAULTS.locations.forEach(loc => {
+        const opt = document.createElement("option");
+        opt.value = loc;
+        opt.innerText = loc;
+        locationSelect.appendChild(opt);
+      });
     }
-    document.getElementById("datepicker").value = dateDefault;
+
+    // Date input (now uses dynamic date from form-defaults.js)
+    if (FORM_DEFAULTS.date) {
+        document.getElementById("datepicker").value = FORM_DEFAULTS.date;
+    }
 
     // Hour dropdown
     if (FORM_DEFAULTS.hour && hourSelect.querySelector(`[value="${FORM_DEFAULTS.hour}"]`))
       hourSelect.value = FORM_DEFAULTS.hour;
 
-    // Location
-    if (FORM_DEFAULTS.location)
-      document.getElementById("location").value = FORM_DEFAULTS.location;
+    // Location dropdown
+    if (FORM_DEFAULTS.location && locationSelect.querySelector(`[value="${FORM_DEFAULTS.location}"]`))
+      locationSelect.value = FORM_DEFAULTS.location;
 
     // PlanTime
     if (FORM_DEFAULTS.planTime)

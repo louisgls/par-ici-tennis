@@ -4,9 +4,14 @@ import express from "express";
 import fs from "fs/promises";
 import { spawn } from "child_process";
 import path from "path";
+import crypto from "crypto";
 
 const app = express(); // Must be initialized BEFORE any route
 app.use(express.json());
+
+// Store active child processes and SSE clients
+const activeRuns = new Map();
+const sseClients = new Map();
 
 const RESERVATIONS_PATH = path.resolve("./data/reservations.json");
 
@@ -18,8 +23,7 @@ function generateId() {
 // Read reservations from file
 async function readReservations() {
   const data = await fs.readFile(RESERVATIONS_PATH, "utf8");
-  const reservations = JSON.parse(data);
-  return reservations;
+  return JSON.parse(data);
 }
 
 // Write reservations to file
@@ -27,13 +31,7 @@ async function writeReservations(reservations) {
   await fs.writeFile(RESERVATIONS_PATH, JSON.stringify(reservations, null, 2));
 }
 
-/**
- * @route   GET /api/reservations
- * @desc    Retrieves all reservations
- * @access  Public
- */
-
-// Returns all reservations
+// --- CRUD API for Reservations ---
 app.get("/api/reservations", async (req, res) => {
   try {
     const reservations = await readReservations();
@@ -43,13 +41,6 @@ app.get("/api/reservations", async (req, res) => {
   }
 });
 
-/**
- * @route   GET /api/reservations/:id
- * @desc    Retrieves a reservation by id
- * @access  Public
- */
-
-// Returns a reservation by id
 app.get("/api/reservations/:id", async (req, res) => {
   try {
     const reservations = await readReservations();
@@ -64,58 +55,30 @@ app.get("/api/reservations/:id", async (req, res) => {
   }
 });
 
-/**
- * @route   POST /api/reservations
- * @desc    Creates a new reservation
- * @access  Public
- */
-
-// Creates a new reservation
 app.post("/api/reservations", async (req, res) => {
   try {
     const data = req.body;
-
-    // Basic validation (can be extended as needed)
     if (!data.date || !data.hour || !data.location || !data.priceType || !data.courtType || !Array.isArray(data.players)) {
       return res.status(400).json({ error: "Missing required reservation fields." });
     }
-
-    const newReservation = {
-      ...data,
-      id: generateId(),
-      status: data.status || "pending",
-    };
-
+    const newReservation = { ...data, id: generateId(), status: data.status || "pending" };
     const reservations = await readReservations();
     reservations.push(newReservation);
     await writeReservations(reservations);
-
-// Log to stdout when reservation created
-    console.log(`[POST] Reservation created: id=${newReservation.id}, date=${newReservation.date}, hour=${newReservation.hour}, location=${newReservation.location}`);
+    console.log(`[POST] Reservation created: id=${newReservation.id}`);
     res.status(201).json(newReservation);
   } catch (err) {
     res.status(500).json({ error: "Failed to create reservation." });
   }
 });
 
-/**
- * @route   PUT /api/reservations/:id
- * @desc    Updates an existing reservation
- * @access  Public
- */
-
-// Updates a reservation by id
 app.put("/api/reservations/:id", async (req, res) => {
   try {
     const reservations = await readReservations();
     const index = reservations.findIndex(r => r.id === req.params.id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Reservation not found." });
-    }
-    // Merge existing reservation with incoming changes
+    if (index === -1) return res.status(404).json({ error: "Reservation not found." });
     reservations[index] = { ...reservations[index], ...req.body, id: reservations[index].id };
     await writeReservations(reservations);
-// Log to stdout when reservation updated
     console.log(`[PUT] Reservation updated: id=${reservations[index].id}`);
     res.json(reservations[index]);
   } catch (err) {
@@ -123,23 +86,13 @@ app.put("/api/reservations/:id", async (req, res) => {
   }
 });
 
-/**
- * @route   DELETE /api/reservations/:id
- * @desc    Deletes a reservation by id
- * @access  Public
- */
-
-// Deletes a reservation by id
 app.delete("/api/reservations/:id", async (req, res) => {
   try {
     const reservations = await readReservations();
     const index = reservations.findIndex(r => r.id === req.params.id);
-    if (index === -1) {
-      return res.status(404).json({ error: "Reservation not found." });
-    }
+    if (index === -1) return res.status(404).json({ error: "Reservation not found." });
     const deleted = reservations.splice(index, 1)[0];
     await writeReservations(reservations);
-// Log to stdout when reservation deleted
     console.log(`[DELETE] Reservation deleted: id=${deleted.id}`);
     res.json({ message: "Reservation deleted.", reservation: deleted });
   } catch (err) {
@@ -147,65 +100,106 @@ app.delete("/api/reservations/:id", async (req, res) => {
   }
 });
 
-// --- END Tennis Reservation API ---
+// --- Real-time Logging and Execution API ---
 
-// Config
 const PORT = 3001;
 const CONFIG_PATH = path.resolve("./config.json");
 const INDEXJS_PATH = path.resolve("./index.js");
 
-// Sert tous les fichiers statiques de la racine (ex : config-editor.html)
 app.use(express.static("."));
 
-// Endpoint pour recevoir la config et déclencher l'action
-app.post("/run-action", async (req, res) => {
-  try {
-    const config = req.body;
-    // Log run-action payload for debug
-    console.log("[RUN-ACTION] Config payload received:", JSON.stringify(config, null, 2));
-    // Sauvegarde la config
-    await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
+// Endpoint for the client to connect for live log streaming
+app.get('/api/run-stream/:runId', (req, res) => {
+    const { runId } = req.params;
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
 
-    // Launch node index.js with "--no-close" for interactive browser inspection, capture logs for UI feedback
-    const child = spawn("node", [INDEXJS_PATH, "--no-close"], { cwd: process.cwd(), stdio: ["ignore", "pipe", "pipe"] });
+    sseClients.set(runId, res);
+    console.log(`[SSE] Client connected for runId: ${runId}`);
 
-    let output = "";
-    let error = "";
-    let foundSuccess = false;
+    res.write(`data: ${JSON.stringify({ type: 'event', message: 'Live log stream connected.' })}\n\n`);
 
-    // Capture stdout and look for "Réservation faite" for success
-    child.stdout.on("data", (data) => {
-      const txt = data.toString();
-      output += txt;
-      if (/Réservation faite/i.test(txt)) {
-        foundSuccess = true;
-      }
+    req.on('close', () => {
+        sseClients.delete(runId);
+        console.log(`[SSE] Client disconnected for runId: ${runId}`);
     });
-
-    // Capture stderr as well
-    child.stderr.on("data", (data) => {
-      const txt = data.toString();
-      error += txt;
-    });
-
-    // On close, send logs & detected status to client
-    child.on("close", (code) => {
-      res.json({
-        success: code === 0 && foundSuccess,
-        output: output,
-        error: error,
-        exitCode: code,
-        detectedSuccess: foundSuccess
-      });
-    });
-  } catch (err) {
-    res
-      .status(500)
-      .json({ success: false, error: err.message || String(err) });
-  }
 });
 
-// Démarrage du serveur
+// Endpoint to start the reservation process
+app.post("/run-action", async (req, res) => {
+    try {
+        const config = req.body;
+        const runId = config.reservationId || crypto.randomUUID();
+
+        if (!config.reservationId) {
+            return res.status(400).json({ success: false, error: "Missing reservationId" });
+        }
+
+        console.log(`[RUN-ACTION] Starting for runId: ${runId}`);
+        await fs.writeFile(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
+
+        const child = spawn("node", [INDEXJS_PATH, "--no-close"], { cwd: process.cwd(), stdio: "pipe" });
+        activeRuns.set(runId, child);
+
+        const sendEvent = (data) => {
+            const client = sseClients.get(runId);
+            if (client) {
+                // Split multiline logs into individual SSE messages
+                const lines = data.toString().trim().split('\n');
+                for (const line of lines) {
+                    client.write(`data: ${JSON.stringify({ type: 'log', message: line })}\n\n`);
+                }
+            }
+        };
+
+        child.stdout.on("data", sendEvent);
+        child.stderr.on("data", sendEvent);
+
+        child.on("close", (code) => {
+            console.log(`[RUN-ACTION] Finished for runId: ${runId} with code ${code}`);
+            const client = sseClients.get(runId);
+            if (client) {
+                const success = code === 0;
+                client.write(`data: ${JSON.stringify({ type: 'result', success, exitCode: code })}\n\n`);
+                client.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
+                client.end();
+            }
+            activeRuns.delete(runId);
+            sseClients.delete(runId);
+        });
+
+        res.status(202).json({ success: true, runId });
+
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message || String(err) });
+    }
+});
+
+// Endpoint to cancel a running reservation process
+app.post("/api/cancel-run/:id", (req, res) => {
+    const { id } = req.params;
+    const child = activeRuns.get(id);
+
+    if (child) {
+        console.log(`[CANCEL-RUN] Terminating process for runId: ${id}`);
+        child.kill("SIGTERM");
+        activeRuns.delete(id);
+
+        const sseClient = sseClients.get(id);
+        if (sseClient) {
+            sseClient.write(`data: ${JSON.stringify({ type: 'event', message: 'Process cancelled by user.' })}\n\n`);
+            sseClient.write(`data: ${JSON.stringify({ type: 'end' })}\n\n`);
+            sseClient.end();
+            sseClients.delete(id);
+        }
+        res.json({ success: true, message: "Process termination signal sent." });
+    } else {
+        res.status(404).json({ success: false, message: "No active run found." });
+    }
+});
+
 app.listen(PORT, () => {
-  console.log(`Backend tennis configurateur listening on http://localhost:${PORT}/`);
+    console.log(`Backend tennis configurateur listening on http://localhost:${PORT}/`);
 });

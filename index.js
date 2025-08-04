@@ -14,50 +14,54 @@ const bookTennis = async () => {
   }
 
   console.log(`${dayjs().format()} - Starting searching tennis`)
-  const browser = await chromium.launch({ headless: true, slowMo: 20, timeout: 120000 })
+  const browser = await chromium.launch({ headless: false, slowMo: 5, timeout: 120000 })
 
   console.log(`${dayjs().format()} - Browser started`)
   const page = await browser.newPage()
   page.setDefaultTimeout(120000)
   await page.goto('https://tennis.paris.fr/tennis/jsp/site/Portal.jsp?page=tennis&view=start&full=1')
 
+  console.log("Step 1: Attempting to log in...");
   await page.click('#button_suivi_inscription')
   await page.fill('#username', config.account.email)
   await page.fill('#password', config.account.password)
   await page.click('#form-login >> button')
 
-  console.log(`${dayjs().format()} - User connected`)
-
-  // wait for login redirection before continue
   await page.waitForSelector('.main-informations')
+  console.log("Step 1: Login successful.");
 
   try {
     const locations = !Array.isArray(config.locations) ? Object.keys(config.locations) : config.locations
     locationsLoop:
     for (const location of locations) {
-      console.log(`${dayjs().format()} - Search at ${location}`)
+      console.log(`Step 2: Searching for location: ${location}`);
       await page.goto('https://tennis.paris.fr/tennis/jsp/site/Portal.jsp?page=recherche&view=recherche_creneau#!')
 
       // select tennis location
+      console.log("--> Selecting location in form...");
       await page.locator('.tokens-input-text').pressSequentially(`${location} `)
       await page.waitForSelector(`.tokens-suggestions-list-element >> text="${location}"`)
       await page.click(`.tokens-suggestions-list-element >> text="${location}"`)
 
       // select date
-      await page.click('#when')
       const date = config.date ? dayjs(config.date, 'D/MM/YYYY') : dayjs().add(6, 'days')
+      console.log(`--> Selecting date: ${date.format('DD/MM/YYYY')}`);
+      await page.click('#when')
       await page.waitForSelector(`[dateiso="${date.format('DD/MM/YYYY')}"]`)
       await page.click(`[dateiso="${date.format('DD/MM/YYYY')}"]`)
       await page.waitForSelector('.date-picker', { state: 'hidden' })
 
+      console.log("--> Submitting search...");
       await page.click('#rechercher')
 
       // wait until the results page is fully loaded before continue
       await page.waitForLoadState('domcontentloaded')
 
       let selectedHour
+      console.log("Step 3: Looping through available hours...");
       hoursLoop:
       for (const hour of config.hours) {
+        console.log(`--> Checking for hour: ${hour}:00...`);
         const dateDeb = `[datedeb="${date.format('YYYY/MM/DD')} ${hour}:00:00"]`
         if (await page.$(dateDeb)) {
           if (await page.isHidden(dateDeb)) {
@@ -81,11 +85,27 @@ const bookTennis = async () => {
             if (!config.priceType.includes(priceType) || !config.courtType.includes(courtType)) {
               continue
             }
+            console.log(`--> Slot found at ${hour}:00! Selecting it.`);
             selectedHour = hour
             await page.click(bookSlotButton)
 
-            break hoursLoop
+            // Check if a modal "reservationEnCours" appears, indicating a conflict
+            try {
+              await page.waitForSelector('#reservationEnCours', { state: 'visible', timeout: 3000 }); // Wait up to 3s for the modal
+              console.log("--> A reservation is already in progress for this account. Aborting search for this location.");
+              // This is a failure condition for this location, so we break the hours loop
+              break hoursLoop;
+            } catch (e) {
+              // Modal did not appear, which is the expected behavior. We can proceed.
+              console.log("--> No conflict modal detected. Proceeding with reservation.");
+            }
+
+            // If we are here, it means no conflict was detected and we are ready to proceed.
+            // We break the hours loop because we have successfully selected a slot.
+            break hoursLoop;
           }
+        } else {
+          console.log(`--> No slots found for ${hour}:00.`);
         }
       }
 
@@ -97,14 +117,17 @@ const bookTennis = async () => {
       await page.waitForLoadState('domcontentloaded')
 
       if (await page.$('.captcha')) {
+        console.log("Step 4: Captcha detected. Attempting to solve...");
         let i = 0
         let note
         do {
           if (i > 2) {
+            console.log("--> Captcha failed 3 times. Aborting.");
             throw new Error('Can\'t resolve captcha, reservation cancelled')
           }
 
           if (i > 0) {
+            console.log("--> Retrying captcha...");
             const iframeDetached = new Promise((resolve) => {
               page.on('framedetached', () => resolve('New captcha'))
             })
@@ -120,9 +143,10 @@ const bookTennis = async () => {
           note = await captchaIframe.locator('#li-antibot-check-note')
           i++
         } while (await note.innerText() !== 'Vérifié avec succès')
+        console.log("Step 4: Captcha solved successfully.");
       }
 
-
+      console.log("Step 5: Filling in player details...");
       for (const [i, player] of config.players.entries()) {
         if (i > 0 && i < config.players.length) {
           await page.click('.addPlayer')
@@ -134,6 +158,7 @@ const bookTennis = async () => {
 
       await page.keyboard.press('Enter')
 
+      console.log("Step 6: Selecting payment mode...");
       await page.waitForSelector('#order_select_payment_form #paymentMode', { state: 'attached' })
       const paymentMode = await page.$('#order_select_payment_form #paymentMode')
       await paymentMode.evaluate(el => {
@@ -154,11 +179,13 @@ const bookTennis = async () => {
         break locationsLoop
       }
 
+      console.log("Step 7: Submitting final reservation...");
       const submit = await page.$('#order_select_payment_form #envoyer')
       submit.evaluate(el => el.classList.remove('hide'))
       await submit.click()
 
       await page.waitForSelector('.confirmReservation')
+      console.log("Step 8: Reservation confirmation page reached.");
 
       console.log(`${dayjs().format()} - Réservation faite : ${await (
         await (await page.$('.address')).textContent()
