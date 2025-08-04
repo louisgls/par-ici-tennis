@@ -12,6 +12,10 @@ RUN npm ci --omit=dev
 
 COPY . .
 
+# Create the data directory and an empty reservations file to ensure the app can start.
+# In a real production setup, this path should be mounted to a persistent volume.
+RUN mkdir -p data && echo "[]" > data/reservations.json
+
 EXPOSE 3001
 
 CMD ["npm", "start"]
