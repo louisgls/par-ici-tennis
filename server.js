@@ -8,7 +8,9 @@ import crypto from "crypto";
 import { startScheduler } from "./scheduler.js";
 import { executeReservation } from "./runner.js";
 
-const app = express(); // Must be initialized BEFORE any route
+const app = express();
+const mainRouter = express.Router(); // Create a main router
+
 app.use(express.json());
 
 // Store active child processes and SSE clients
@@ -16,6 +18,8 @@ const activeRuns = new Map();
 const sseClients = new Map();
 
 const RESERVATIONS_PATH = path.resolve("./data/reservations.json");
+const CONFIG_PATH = path.resolve("./config.json");
+const INDEXJS_PATH = path.resolve("./index.js");
 
 // Utility to generate unique ID for each reservation
 function generateId() {
@@ -33,8 +37,10 @@ async function writeReservations(reservations) {
   await fs.writeFile(RESERVATIONS_PATH, JSON.stringify(reservations, null, 2));
 }
 
+// --- Attach all routes to the mainRouter ---
+
 // --- CRUD API for Reservations ---
-app.get("/api/reservations", async (req, res) => {
+mainRouter.get("/api/reservations", async (req, res) => {
   try {
     const reservations = await readReservations();
     res.json(reservations);
@@ -43,7 +49,7 @@ app.get("/api/reservations", async (req, res) => {
   }
 });
 
-app.get("/api/reservations/:id", async (req, res) => {
+mainRouter.get("/api/reservations/:id", async (req, res) => {
   try {
     const reservations = await readReservations();
     const reservation = reservations.find(r => r.id === req.params.id);
@@ -57,7 +63,7 @@ app.get("/api/reservations/:id", async (req, res) => {
   }
 });
 
-app.post("/api/reservations", async (req, res) => {
+mainRouter.post("/api/reservations", async (req, res) => {
   try {
     const data = req.body;
     if (!data.date || !data.hour || !data.location || !data.priceType || !data.courtType || !Array.isArray(data.players)) {
@@ -74,7 +80,7 @@ app.post("/api/reservations", async (req, res) => {
   }
 });
 
-app.put("/api/reservations/:id", async (req, res) => {
+mainRouter.put("/api/reservations/:id", async (req, res) => {
   try {
     const reservations = await readReservations();
     const index = reservations.findIndex(r => r.id === req.params.id);
@@ -88,7 +94,7 @@ app.put("/api/reservations/:id", async (req, res) => {
   }
 });
 
-app.delete("/api/reservations/:id", async (req, res) => {
+mainRouter.delete("/api/reservations/:id", async (req, res) => {
   try {
     const reservations = await readReservations();
     const index = reservations.findIndex(r => r.id === req.params.id);
@@ -105,10 +111,23 @@ app.delete("/api/reservations/:id", async (req, res) => {
 // --- Real-time Logging and Execution API ---
 
 const PORT = 3001;
-app.use(express.static("."));
+
+// Serve static files from the root of the router
+mainRouter.use(express.static("."));
+
+// Dynamically serve the frontend configuration
+mainRouter.get('/app-config.js', (req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    const basePath = process.env.APP_BASE_PATH || '';
+    res.send(`
+        window.APP_CONFIG = {
+            BASE_PATH: '${basePath}'
+        };
+    `);
+});
 
 // Endpoint for the client to connect for live log streaming
-app.get('/api/run-stream/:runId', (req, res) => {
+mainRouter.get('/api/run-stream/:runId', (req, res) => {
     const { runId } = req.params;
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -127,7 +146,7 @@ app.get('/api/run-stream/:runId', (req, res) => {
 });
 
 // Endpoint to start the reservation process, now using the runner
-app.post("/run-action", async (req, res) => {
+mainRouter.post("/run-action", async (req, res) => {
     try {
         const config = req.body;
         const runId = config.reservationId;
@@ -136,12 +155,10 @@ app.post("/run-action", async (req, res) => {
             return res.status(400).json({ success: false, error: "Missing reservationId" });
         }
 
-        // Immediately respond to the client so it can connect to the SSE stream
         res.status(202).json({ success: true, runId });
 
         console.log(`[RUN-ACTION] Starting for runId: ${runId}`);
 
-        // Define the onLog callback to stream data to the SSE client
         const onLog = (log) => {
             const client = sseClients.get(runId);
             if (client) {
@@ -152,10 +169,8 @@ app.post("/run-action", async (req, res) => {
             }
         };
 
-        // Execute the reservation and wait for the result, passing the activeRuns map for cancellation tracking
         const result = await executeReservation(config, activeRuns, onLog);
 
-        // When done, send the final result and close the SSE connection
         const client = sseClients.get(runId);
         if (client) {
             console.log(`[RUN-ACTION] Finished for runId: ${runId} with code ${result.exitCode}`);
@@ -167,12 +182,13 @@ app.post("/run-action", async (req, res) => {
 
     } catch (err) {
         // This will catch errors in the initial setup, not in the async runner
-        res.status(500).json({ success: false, error: err.message || String(err) });
+        // We don't send a response here because one has already been sent (status 202)
+        console.error(`[RUN-ACTION] Error starting process for runId ${req.body.reservationId}:`, err);
     }
 });
 
 // Endpoint to cancel a running reservation process
-app.post("/api/cancel-run/:id", (req, res) => {
+mainRouter.post("/api/cancel-run/:id", (req, res) => {
     const { id } = req.params;
     const child = activeRuns.get(id);
 
@@ -194,8 +210,12 @@ app.post("/api/cancel-run/:id", (req, res) => {
     }
 });
 
+// Mount the main router under the configurable base path
+const basePath = process.env.APP_BASE_PATH || '/';
+app.use(basePath, mainRouter);
+
 app.listen(PORT, () => {
-    console.log(`Backend tennis configurateur listening on http://localhost:${PORT}/`);
+    console.log(`Backend tennis configurateur listening on http://localhost:${PORT}${basePath}`);
     // Start the reservation scheduler
     startScheduler();
 });

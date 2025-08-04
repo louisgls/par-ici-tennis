@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <title>Réservations Tennis · Gestion & planification</title>
 
+  <script src="app-config.js"></script>
   <link rel="stylesheet" href="style.css">
   <style>
     /* Log modal overlay styling */
@@ -268,7 +269,7 @@
 async function fetchAndRenderReservations() {
   // Calls GET /api/reservations to get reservations from backend
   try {
-    const resp = await fetch("/api/reservations");
+    const resp = await fetch(`${window.APP_CONFIG.BASE_PATH}/api/reservations`);
     reservations = await resp.json();
     renderReservations();
   } catch (err) {
@@ -312,7 +313,7 @@ function renderReservations() {
 // Delete a reservation by id (calls backend then refreshes UI)
 window.removeReservation = async function (id) {
   if (!id) return;
-  await fetch(`/api/reservations/${id}`, { method: "DELETE" });
+  await fetch(`${window.APP_CONFIG.BASE_PATH}/api/reservations/${id}`, { method: "DELETE" });
   await fetchAndRenderReservations();
 };
 
@@ -347,7 +348,7 @@ window.startReservation = async function (id) {
   }
 
   async function updateReservationStatus(status) {
-    await fetch(`/api/reservations/${id}`, {
+    await fetch(`${window.APP_CONFIG.BASE_PATH}/api/reservations/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: status })
@@ -369,7 +370,7 @@ window.startReservation = async function (id) {
   };
 
   try {
-    const runResponse = await fetch("/run-action", {
+    const runResponse = await fetch(`${window.APP_CONFIG.BASE_PATH}/run-action`, {
       method: "POST",
       body: JSON.stringify(configPayload),
       headers: { "Content-Type": "application/json" }
@@ -381,11 +382,11 @@ window.startReservation = async function (id) {
 
     const { runId } = await runResponse.json();
 
-    eventSource = new EventSource(`/api/run-stream/${runId}`);
+    eventSource = new EventSource(`${window.APP_CONFIG.BASE_PATH}/api/run-stream/${runId}`);
 
     cancelButton.onclick = async () => {
       eventSource.close();
-      await fetch(`/api/cancel-run/${runId}`, { method: "POST" });
+      await fetch(`${window.APP_CONFIG.BASE_PATH}/api/cancel-run/${runId}`, { method: "POST" });
       await updateReservationStatus("cancelled");
       hideLogModal();
     };
@@ -471,7 +472,7 @@ document.getElementById("newResaForm").onsubmit = async function (e) {
         status: "pending",
         account: { ...globalAuth } // Embed the credentials in the reservation
       };
-      await fetch("/api/reservations", {
+      await fetch(`${window.APP_CONFIG.BASE_PATH}/api/reservations`, {
         method: "POST",
         body: JSON.stringify(resa),
         headers: { "Content-Type": "application/json" }

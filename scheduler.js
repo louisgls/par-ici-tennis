@@ -1,9 +1,10 @@
 import fs from 'fs/promises';
-import path from 'path';
 import fetch from 'node-fetch';
 import { executeReservation } from './runner.js';
+import path from 'path';
 
 const RESERVATIONS_PATH = path.resolve("./data/reservations.json");
+
 const API_URL = 'http://localhost:3001';
 
 // Function to read all reservations from the JSON file
