@@ -10,6 +10,9 @@ COPY package*.json ./
 
 RUN npm ci --omit=dev
 
+# Install Playwright's browser dependencies
+RUN npx playwright install-deps
+
 COPY . .
 
 # Create the data directory and an empty reservations file to ensure the app can start.
